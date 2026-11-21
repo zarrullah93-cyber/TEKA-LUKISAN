@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🎨 Bermain — Teka Lukisan</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .room-info { font-size: 0.9rem; opacity: 0.9; }
+        .scores { display: flex; gap: 15px; flex-wrap: wrap; }
+        .player-score { background: rgba(255,255,255,0.2); padding: 5px 12px; border-radius: 20px; font-size: 0.9rem; }
+        
+        .word-hint {
+            background: white;
+            padding: 12px 20px;
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #eee;
+        }
+        .word-hint.hidden { color: transparent; text-shadow: 0 0 8px #999; }
+        
+        /* Kanvas Lukisan */
+        .canvas-container {
+            flex: 1;
+            background: white;
+            position: relative;
+            touch-action: none;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+        
+        /* Alat Lukisan — Hanya Nampak Kepada Pelukis */
+        .tools {
+            background: white;
+            padding: 10px 15px;
+            border-top: 1px solid #ddd;
+            display: none;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .tools.show { display: flex; }
+        .color-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .color-btn:hover { transform: scale(1.1); }
+        .color-btn.active { border-color: #333; }
+        .brush-btn, .clear-btn, .undo-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .brush-btn { background: #667eea; color: white; }
+        .clear-btn { background: #e53935; color: white; }
+        .undo-btn { background: #ff9800; color: white; }
+        
+        /* Kotak Teka Jawapan — Hanya Nampak Kepada Peneka */
+        .guess-area {
+            background: white;
+            padding: 15px;
+            border-top: 1px solid #ddd;
+            display: none;
+        }
+        .guess-area.show { display: block; }
+        .guess-input-container { display: flex; gap: 10px; }
+        #guessInput {
+            flex: 1;
+            padding: 12px 15px;
+            font-size: 1rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        #guessInput:focus { outline: none; border-color: #667eea; }
+        .btn-send {
+            padding: 12px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-send:hover { background: #5568d3; }
+        
+        /* Mesej & Senarai Pemain */
+        .messages {
+            position: fixed;
+            top: 110px;
+            right: 15px;
+            max-width: 250px;
+            z-index: 100;
+        }
+        .msg {
+            background: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            font-size: 0.9rem;
+            animation: slideIn 0.3s ease;
+        }
+        .msg.correct { background: #e8f5e9; color: #2e7d32; }
+        .msg.wrong { background: #ffebee; color: #c62828; }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        /* Pilih Perkataan — untuk pelukis */
+        .word-selector {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            z-index: 200;
+            display: none;
+            text-align: center;
+            max-width: 350px;
+        }
+        .word-selector.show { display: block; }
+        .word-selector h3 { color: #5c6bc0; margin-bottom: 20px; }
+        .word-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #f5f5f5;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.2s;
+        }
+        .word-btn:hover { background: #e8eaf6; }
+        
+        /* Butang Tamat/Giliran Baru */
+        .end-turn {
+            position: fixed;
+            bottom: 90px;
+            right: 15px;
+            z-index: 50;
+            display: none;
+        }
+        .end-turn.show { display: block; }
+        .btn-end {
+            padding: 10px 18px;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-end:hover {
+background: #43a047;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <div><strong id="myNameDisplay">Pemain</strong></div>
+            <div class="room-info">Bilik: <span id="roomIdDisplay">———</span></div>
+        </div>
+        <div class="scores" id="scoresList"></div>
+    </header>
+
+    <!-- Petunjuk Perkataan — Hanya Pelukis Nampak Penuh -->
+    <div class="word-hint hidden" id="wordHint">
+        <span id="wordText">Perkataan rahsia</span>
+    </div>
+
+    <!-- Kawasan Lukisan -->
+    <div class="canvas-container">
+        <canvas id="drawingCanvas"></canvas>
+    </div>
+
+    <!-- Alat Lukisan — Hanya untuk Pelukis -->
+    <div class="tools" id="painterTools">
+        <button class="color-btn active" style="background: #000000" data-color="#000000"></button>
+        <button class="color-btn" style="background: #ffffff; border: 1px solid #ccc" data-color="#ffffff"></button>
+        <button class="color-btn" style="background: #e53935" data-color="#e53935"></button>
+        <button class="color-btn" style="background: #ff9800" data-color="#ff9800"></button>
+        <button class="color-btn" style="background: #fdd835" data-color="#fdd835"></button>
+        <button class="color-btn" style="background: #43a047" data-color="#43a047"></button>
+        <button class="color-btn" style="background: #2196f3" data-color="#2196f3"></button>
+        <button class="color-btn" style="background: #9c27b0" data-color="#9c27b0"></button>
+        <button class="color-btn" style="background: #795548" data-color="#795548"></button>
+        <button class="undo-btn" id="undoBtn">↩️ Undo</button>
+        <button class="clear-btn" id="clearBtn">🗑️ Padam</button>
+    </div>
+
+    <!-- Kotak Teka Jawapan — Hanya untuk Peneka -->
+    <div class="guess-area" id="guesserArea">
+        <div class="guess-input-container">
+            <input type="text" id="guessInput" placeholder="Taip jawapan anda di sini..." maxlength="30">
+            <button class="btn-send" id="sendBtn">Hantar</button>
+        </div>
+    </div>
+
+    <!-- Senarai Mesej & Maklum Balas -->
+    <div class="messages" id="messagesArea"></div>
+
+    <!-- Pilih Perkataan — Mula Pusingan Baru -->
+    <div class="word-selector" id="wordSelector">
+        <h3>🎨 Pilih satu perkataan untuk dilukis:</h3>
+        <button class="word-btn" data-word="Bunga">🌸 Bunga</button>
+        <button class="word-btn" data-word="Kucing">🐱 Kucing</button>
+        <button class="word-btn" data-word="Pesawat">✈️ Pesawat</button>
+        <button class="word-btn" data-word="Matahari">☀️ Matahari</button>
+        <button class="word-btn" data-word="Basikal">🚲 Basikal</button>
+        <button class="word-btn" data-word="Perpustakaan">📚 Perpustakaan</button>
+        <button class="word-btn" data-word="Coklat">🍫 Coklat</button>
+        <button class="word-btn" data-word="Belimbing">⭐ Belimbing</button>
+        <button class="word-btn" data-word="Gunung">⛰️ Gunung</button>
+        <button class="word-btn" data-word="Bulan">🌙 Bulan</button>
+    </div>
+
+    <!-- Butang Tamat Giliran -->
+    <div class="end-turn" id="endTurnArea">
+        <button class="btn-end" id="endTurnBtn">🔁 Tamat Giliran & Tukar Pelukis</button>
+    </div>
+
+    <script>
+        // === MASUKKAN KOD FIREBASE ANDA DI SINI ===
+        const firebaseConfig = {
+          apiKey: "GANTI-DENGAN-apiKey-ANDA",
+          databaseURL: "https://tekalukisann-default-rtdb.asia-southeast1.firebasedatabase.app/",
+          projectId: "tekalukisann"
+        };
+        // =========================================
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Data Pengguna
+        let myName = localStorage.getItem('myName') || 'Pemain';
+        let roomId = localStorage.getItem('roomId') || '';
+        let isPainter = localStorage.getItem('isPainter') === 'true';
+        let players = {};
+
+        // Kanvas Lukisan
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        let currentColor = '#000000';
+        let brushSize = 4;
+        let drawing = false;
+        let lastX = 0, lastY = 0;
+        let strokes = [];
+        let currentStroke = [];
+
+        // Tetapkan saiz kanvas
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+        }
+
+        // Kemaskini Maklumat Halaman
+        document.getElementById('myNameDisplay').textContent = myName;
+        document.getElementById('roomIdDisplay').textContent = roomId;
+
+        // Tunjuk alat yang betul mengikut peranan
+        if (isPainter) {
+            document.getElementById('painterTools').classList.add('show');
+            document.getElementById('wordHint').classList.remove('hidden');
+            document.getElementById('wordSelector').classList.add('show');
+            document.getElementById('endTurnArea').classList.add('show');
+        } else {
+            document.getElementById('guesserArea').classList.add('show');
+        }
+
+        // === FUNGSI LUKISAN ===
+        function startDraw(e) {
+            if (!isPainter) return;
+            e.preventDefault();
+            drawing = true;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+            const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            lastX = x; lastY = y;
+            currentStroke = [{x, y, color: currentColor, size: brushSize}];
+        }
+
+        function draw(e) {
+            if (!drawing || !isPainter) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+            const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            
+            ctx.strokeStyle = currentColor;
+            ctx.lineWidth = brushSize;
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            
+            currentStroke.push({x, y, color: currentColor, size: brushSize});
+            lastX = x; lastY = y;
+        }
+
+        function endDraw(e) {
+            if (!drawing || !isPainter) return;
+            e.preventDefault();
+            drawing = false;
+            if (currentStroke.length > 0) {
+                strokes.push(currentStroke);
+                sendDrawingToFirebase();
+            }
+            currentStroke = [];
+        }
+
+        // Sambung acara lukisan
+        canvas.addEventListener('mousedown', startDraw);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', endDraw);
+        canvas.addEventListener('mouseout', endDraw);
+        canvas.addEventListener('touchstart', startDraw);
+        canvas.addEventListener('touchmove', draw);
+        canvas.addEventListener('touchend', endDraw);
+
+        // Hantar data lukisan ke Firebase
+        function sendDrawingToFirebase() {
+            db.ref('rooms/' + roomId + '/drawingData').set({
+                strokes: strokes,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+
+        // Terima & paparkan lukisan dari Firebase
+        db.ref('rooms/' + roomId + '/drawingData').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+            strokes = data.strokes || [];
+            redrawCanvas();
+        });
+
+        function redrawCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            strokes.forEach(stroke => {
+                if (stroke.length < 2) return;
+                ctx.strokeStyle = stroke[0].color;
+                ctx.lineWidth = stroke[0].size;
+                ctx.beginPath();
+                ctx.moveTo(stroke[0].x, stroke[0].y);
+                for (let i = 1; i < stroke.length; i++) {
+                    ctx.lineTo(stroke[i].x, stroke[i].y);
+                }
+                ctx.stroke();
+            });
+        }
+
+        // Pilih Warna
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentColor = this.dataset.color;
+            });
+        });
+
+        // Padam Semua
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            if (!isPainter) return;
+            if (confirm('Padamkan semua lukisan?')) {
+                strokes = [];
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                sendDrawingToFirebase();
+            }
+        });
+
+        // Undo
+        document.getElementById('undoBtn').addEventListener('click', () => {
+            if (!isPainter || strokes.length === 0) return;
+            strokes.pop();
+            redrawCanvas();
+            sendDrawingToFirebase();
+        });
+
+        // Pilih Perkataan (Pelukis)
+        document.querySelectorAll('.word-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const word = this.dataset.word;
+                document.getElementById('wordSelector').classList.remove('show');
+                document.getElementById('wordText').textContent = word;
+                db.ref('rooms/' + roomId).update({
+                    currentWord: word,
+                    gameState: 'playing'
+                });
+                addMessage('🎨 Anda memilih: ' + word, 'correct');
+            });
+        });
+
+        // Dengar perkataan dari Firebase (untuk peneka)
+        db.ref('rooms/' + roomId + '/currentWord').on('value', (snapshot) => {
+            const word = snapshot.val();
+            if (word && !isPainter) {
+                addMessage('🔤 Ada ' + word.length + ' huruf. Cuba teka!', '');
+            }
+        });
+
+        // Hantar Jawapan
+        function sendGuess() {
+            const input = document.getElementById('guessInput');
+            const guess = input.value.trim();
+            if (!guess) return;
+            
+            const currentWordRef = db.ref('rooms/' + roomId + '/currentWord');
+            currentWordRef.once('value').then(snap => {
+                const correctWord = snap.val();
+                if (!correctWord) {
+                    addMessage('⏳ Sila tunggu pelukis pilih perkataan...', 'wrong');
+                    return;
+                }
+                
+                if (guess.toLowerCase() === correctWord.toLowerCase()) {
+                    addMessage(`🎉 ${myName}! Anda betul! Jawapannya: ${correctWord}`, 'correct');
+                    
+                    // Tambah mata
+                    const playerRef = db.ref(`rooms/${roomId}/players/${myName}`);
+                    playerRef.once('value').then(psnap => {
+                        const score = (psnap.val()?.score || 0) + 10;
+                        playerRef.update({ score: score });
+                    });
+                    
+                    // Kosongkan lukisan & pilih perkataan baru
+                    setTimeout(() => {
+                        strokes = [];
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        db.ref('rooms/' + roomId + '/drawingData').remove();
+                        if (isPainter) {
+                            document.getElementById('wordSelector').classList.add('show');
+                        }
+                    }, 2000);
+                } else {
+                    addMessage(`❌ "${guess}" salah. Cuba lagi!`, 'wrong');
+                }
+            });
+            input.value = '';
+        }
+
+        document.getElementById('sendBtn').addEventListener('click', sendGuess);
+        document.getElementById('guessInput').addEventListener('keypress', e => {
+            if (e.key === 'Enter') sendGuess();
+        });
+
+        // Tamat Giliran
+        document.getElementById('endTurnBtn').addEventListener('click', () => {
+            if (confirm('Tamat giliran dan mula pusingan baru?')) {
+                db.ref('rooms/' + roomId).update({
+                    currentWord: '',
+                    gameState: 'waiting',
+                    drawingData: null
+                });
+                strokes = [];
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                document.getElementById('wordSelector').classList.add('show');
+                addMessage('🔁 Pusingan baru bermula!', 'correct');
+            }
+        });
+
+        // Kemaskini Senarai Pemain & Skor
+        db.ref('rooms/' + roomId + '/players').on('value', (snapshot) => {
+            players = snapshot.val() || {};
+            const list = document.getElementById('scoresList');
+            list.innerHTML = '';
+            Object.entries(players).forEach(([name, data]) => {
+                const span = document.createElement('div');
+                span.className = 'player-score';
+                span.innerHTML = `${name}: <strong>${data.score || 0}</strong>`;
+                if (data.role === 'painter') span.innerHTML += ' 🎨';
+                list.appendChild(span);
+            });
+        });
+
+        // Tambah Mesej
+        function addMessage(text, type = '') {
+            const area = document.getElementById('messagesArea');
+            const msg = document.createElement('div');
+            msg.className = `msg ${type}`;
+            msg.textContent = text;
+            area.insertBefore(msg, area.firstChild);
+            
+            // Auto padam mesej lama selepas 5 saat
+            setTimeout(() => { if (msg.parentNode) msg.remove(); }, 5000);
+        }
+
+        // Inisialisasi
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            redrawCanvas();
+        });
+    </script>
+</body>
+</html>

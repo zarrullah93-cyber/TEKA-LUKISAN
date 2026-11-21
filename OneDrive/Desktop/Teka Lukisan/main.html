@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎨 Teka Lukisan — Permainan</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: white; text-shadow: 0 2px 10px rgba(0,0,0,0.2); margin-bottom: 30px; }
+        
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 450px;
+            width: 100%;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        h2 { color: #5c6bc0; margin-bottom: 20px; text-align: center; }
+        input, select {
+            width: 100%;
+            padding: 14px;
+            font-size: 1rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            transition: border 0.3s ease;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn-purple {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        .btn-purple:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-green { background: #4caf50; color: white; margin-top: 10px; }
+        .btn-green:hover { background: #45a049; }
+        .btn-orange { background: #ff9800; color: white; }
+        .btn-orange:hover { background: #fb8c00; }
+        
+        .room-id {
+            background: #e8eaf6;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #3949ab;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 15px;
+            display: none;
+        }
+        .status.waiting { background: #fff3e0; color: #e65100; display: block; }
+        .status.ready { background: #e8f5e9; color: #2e7d32; display: block; }
+        
+        .divider {
+            text-align: center;
+            margin: 25px 0;
+            color: #888;
+            position: relative;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 40%;
+            height: 1px;
+            background: #ddd;
+        }
+        .divider::before { left: 0; }
+        .divider::after { right: 0; }
+    </style>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+    <h1>🎨 Teka Lukisan</h1>
+
+    <div class="card">
+        <h2>Buat / Masuk Bilik</h2>
+        <input type="text" id="playerName" placeholder="Nama Anda" maxlength="15">
+        <button class="btn btn-purple" onclick="createRoom()">➕ Buat Bilik Baru</button>
+        
+        <div class="divider">ATAU</div>
+        
+        <input type="text" id="roomCode" placeholder="Masuk Kod Bilik (6 huruf)">
+        <button class="btn btn-green" onclick="joinRoom()">🚪 Masuk Bilik</button>
+        
+        <div id="statusMsg" class="status waiting"></div>
+    </div>
+
+    <script>
+        // === MASUKKAN KOD FIREBASE ANDA DI BAWAH INI ===
+       const firebaseConfig = {
+  apiKey: "AIzaSyD_8Ov9I0CcaH5-CDzR6J0SlaPuCe-x96Q",
+  authDomain: "tekalukisann.firebaseapp.com",
+  databaseURL: "https://tekalukisann-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "tekalukisann",
+  storageBucket: "tekalukisann.firebasestorage.app",
+  messagingSenderId: "533420459494",
+  appId: "1:533420459494:web:696776ea4a2bb36ffdc227"
+};
+        // =================================================
+
+        // Inisialisasi Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let myName = '';
+        let roomId = '';
+
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        function createRoom() {
+            myName = document.getElementById('playerName').value.trim();
+            if (!myName) { alert('Sila masukkan nama anda ya!'); return; }
+            
+            roomId = generateRoomCode();
+            const roomRef = db.ref('rooms/' + roomId);
+            
+            roomRef.set({
+                createdBy: myName,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                players: { [myName]: { role: 'painter', score: 0 } },
+                gameState: 'waiting',
+                currentWord: '',
+                drawingData: null
+            });
+            
+            localStorage.setItem('myName', myName);
+            localStorage.setItem('roomId', roomId);
+            localStorage.setItem('isPainter', 'true');
+            
+            alert(`✅ Bilik dicipta!\n\n📢 Kod Bilik: ${roomId}\n\nKongsi kod ini dengan kawan-kawan anda!`);
+            window.location.href = 'game.html';
+        }
+
+        function joinRoom() {
+            myName = document.getElementById('playerName').value.trim();
+            roomId = document.getElementById('roomCode').value.trim().toUpperCase();
+            
+            if (!myName) { alert('Sila masukkan nama anda ya!'); return; }
+            if (!roomId || roomId.length !== 6) { alert('Sila masukkan kod bilik yang sah!'); return; }
+            
+            const roomRef = db.ref('rooms/' + roomId);
+            roomRef.once('value').then(snapshot => {
+                if (!snapshot.exists()) {
+                    alert('❌ Bilik tidak dijumpai! Semak kod dan cuba lagi.');
+                    return;
+                }
+                
+                const data = snapshot.val();
+                if (data.players && data.players[myName]) {
+                    alert('Nama ini sudah digunakan dalam bilik ini. Sila guna nama lain.');
+                    return;
+                }
+                
+                // Tambah pemain baru
+                const updates = {};
+                updates[`players/${myName}`] = { role: 'guesser', score: 0 };
+                roomRef.update(updates);
+                
+                localStorage.setItem('myName', myName);
+                localStorage.setItem('roomId', roomId);
+                localStorage.setItem('isPainter', 'false');
+                
+                window.location.href = 'game.html';
+            });
+        }
+
+        // Ingat nama jika pernah masuk
+        window.onload = function() {
+            const savedName = localStorage.getItem('myName');
+            if (savedName) document.getElementById('playerName').value = savedName;
+        };
+    </script>
+</body>
+</html>
